@@ -25,6 +25,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
+
+import org.opensearch.tsdb.core.model.SampleList;
 
 /**
  * Pipeline stage that implements M3QL's topK function.
@@ -166,8 +169,18 @@ public class TopKStage implements UnaryPipelineStage {
 
     @Override
     public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce) {
+        return reduce(aggregations, isFinalReduce, null);
+    }
+
+    @Override
+    public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce, LongConsumer circuitBreakerConsumer) {
         if (aggregations == null || aggregations.isEmpty()) {
             throw new IllegalArgumentException("Aggregations list cannot be null or empty");
+        }
+
+        // Track ArrayList allocation for collecting all series
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
         }
 
         // Collect all series from all shards
@@ -183,6 +196,11 @@ public class TopKStage implements UnaryPipelineStage {
             allSeries.sort(comparator);
         } else {
             allSeries.sort(comparator.reversed());
+        }
+
+        // Track result ArrayList allocation
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
         }
 
         // Take the top k series

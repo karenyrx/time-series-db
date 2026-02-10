@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
+
+import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.tsdb.core.model.SampleList;
 
 /**
  * Abstract base class for pipeline stages that support label grouping and calculation for each Sample.
@@ -142,8 +146,14 @@ public abstract class AbstractGroupingSampleStage<A> extends AbstractGroupingSta
         List<TimeSeriesProvider> aggregations,
         TimeSeriesProvider firstAgg,
         TimeSeries firstTimeSeries,
-        boolean isFinalReduce
+        boolean isFinalReduce,
+        LongConsumer circuitBreakerConsumer
     ) {
+        // Track outer HashMap allocation
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(RamUsageEstimator.shallowSizeOfInstance(HashMap.class));
+        }
+
         // Combine samples by group across all aggregations
         Map<ByteLabels, Map<Long, A>> groupToTimestampSample = new HashMap<>();
 
@@ -151,11 +161,27 @@ public abstract class AbstractGroupingSampleStage<A> extends AbstractGroupingSta
             for (TimeSeries series : aggregation.getTimeSeries()) {
                 // For global case (no grouping), use empty labels
                 ByteLabels groupLabels = extractGroupLabelsDirect(series);
+
+                // Track new group allocation
+                boolean isNewGroup = !groupToTimestampSample.containsKey(groupLabels);
+                if (isNewGroup && circuitBreakerConsumer != null) {
+                    // Track: HashMap entry + labels + inner HashMap
+                    circuitBreakerConsumer.accept(
+                        RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + groupLabels.ramBytesUsed() + RamUsageEstimator
+                            .shallowSizeOfInstance(HashMap.class)
+                    );
+                }
+
                 Map<Long, A> timestampToSample = groupToTimestampSample.computeIfAbsent(groupLabels, k -> new HashMap<>());
 
                 // Aggregate samples for this series into the group's timestamp map
-                aggregateSamplesIntoMap(series.getSamples(), timestampToSample);
+                aggregateSamplesIntoMap(series.getSamples(), timestampToSample, circuitBreakerConsumer);
             }
+        }
+
+        // Track result ArrayList allocation
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
         }
 
         // Create the final aggregated time series for each group
@@ -175,6 +201,11 @@ public abstract class AbstractGroupingSampleStage<A> extends AbstractGroupingSta
             });
 
             Labels finalLabels = groupLabels.isEmpty() ? ByteLabels.emptyLabels() : groupLabels;
+
+            // Track TimeSeries memory
+            if (circuitBreakerConsumer != null) {
+                circuitBreakerConsumer.accept(TimeSeries.ESTIMATED_MEMORY_OVERHEAD + finalLabels.ramBytesUsed());
+            }
 
             // Use metadata from the first nonEmpty time series
             resultTimeSeries.add(
@@ -203,7 +234,7 @@ public abstract class AbstractGroupingSampleStage<A> extends AbstractGroupingSta
     /**
      * Helper method to aggregate samples into an existing timestamp map.
      */
-    private void aggregateSamplesIntoMap(SampleList samples, Map<Long, A> timestampToSample) {
+    private void aggregateSamplesIntoMap(SampleList samples, Map<Long, A> timestampToSample, LongConsumer circuitBreakerConsumer) {
         for (Sample sample : samples) {
             // Skip NaN values - treat them as null/missing
             if (Double.isNaN(sample.getValue())) {
@@ -211,7 +242,15 @@ public abstract class AbstractGroupingSampleStage<A> extends AbstractGroupingSta
             }
             long timestamp = sample.getTimestamp();
 
+            // Track new timestamp entry allocation
+            boolean isNewTimestamp = !timestampToSample.containsKey(timestamp);
+
             timestampToSample.compute(timestamp, (ts, a) -> aggregateSingleSample(a, sample));
+
+            if (isNewTimestamp && circuitBreakerConsumer != null) {
+                // Track HashMap entry overhead for new timestamp
+                circuitBreakerConsumer.accept(RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + Long.BYTES);
+            }
         }
     }
 

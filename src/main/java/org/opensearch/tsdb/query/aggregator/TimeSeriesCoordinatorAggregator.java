@@ -29,6 +29,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongConsumer;
+
+import org.opensearch.tsdb.query.utils.ReduceCircuitBreakerHelper;
 
 /**
  * Coordinator pipeline aggregator that handles a list of pipeline stages at the coordinator.
@@ -253,22 +256,28 @@ public class TimeSeriesCoordinatorAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
+        // Create circuit breaker consumer from reduce context for coordinator-level tracking
+        LongConsumer cbConsumer = ReduceCircuitBreakerHelper.createConsumer(context);
+
         // Execute the main pipeline stages, with macro support if macros are defined
-        List<TimeSeries> result = processMainPipeline(aggregations);
+        List<TimeSeries> result = processMainPipeline(aggregations, cbConsumer);
         return new InternalTimeSeries(name(), result, metadata());
     }
 
     /**
      * Process the main pipeline stages, with support for macro references.
      * Macros are definitions that can be referenced by stages in the main pipeline.
+     *
+     * @param aggregations the aggregations to process
+     * @param cbConsumer optional circuit breaker consumer for memory tracking
      */
-    private List<TimeSeries> processMainPipeline(Aggregations aggregations) {
+    private List<TimeSeries> processMainPipeline(Aggregations aggregations, LongConsumer cbConsumer) {
         // Extract referenced pipeline results using buckets_path
         Map<String, List<TimeSeries>> availableReferences = extractReferenceResults(aggregations);
 
         // If we have macro definitions, evaluate them and append results to available references
         if (!macroDefinitions.isEmpty()) {
-            evaluateAndAppendMacros(availableReferences);
+            evaluateAndAppendMacros(availableReferences, cbConsumer);
         }
 
         // Execute the main pipeline stages
@@ -285,8 +294,8 @@ public class TimeSeriesCoordinatorAggregator extends SiblingPipelineAggregator {
             }
             resultTimeSeries = availableReferences.get(inputReference);
 
-            // Apply main pipeline stages sequentially
-            resultTimeSeries = executeStages(stages, resultTimeSeries, availableReferences);
+            // Apply main pipeline stages sequentially with circuit breaker tracking
+            resultTimeSeries = executeStages(stages, resultTimeSeries, availableReferences, cbConsumer);
         }
         return resultTimeSeries != null ? resultTimeSeries : List.of();
     }
@@ -295,14 +304,17 @@ public class TimeSeriesCoordinatorAggregator extends SiblingPipelineAggregator {
      * Evaluate macro definitions and append their results to the provided reference map.
      * Macros can reference other macros, so they are evaluated in dependency order.
      * Modifies the availableReferences map in place.
+     *
+     * @param availableReferences the map of available references
+     * @param cbConsumer optional circuit breaker consumer for memory tracking
      */
-    private void evaluateAndAppendMacros(Map<String, List<TimeSeries>> availableReferences) {
+    private void evaluateAndAppendMacros(Map<String, List<TimeSeries>> availableReferences, LongConsumer cbConsumer) {
         // Evaluate macros in definition order as provided by the parser/planner
         // TODO: Support topological sort for automatic dependency resolution in the future
         for (MacroDefinition macro : macroDefinitions.values()) {
             // Execute the macro stages using all references available so far
             List<TimeSeries> macroInput = getMacroInput(availableReferences, macro);
-            List<TimeSeries> macroOutput = executeStages(macro.getStages(), macroInput, availableReferences);
+            List<TimeSeries> macroOutput = executeStages(macro.getStages(), macroInput, availableReferences, cbConsumer);
 
             // Add the macro output to available references for subsequent macros
             availableReferences.put(macro.getName(), macroOutput);
@@ -401,12 +413,18 @@ public class TimeSeriesCoordinatorAggregator extends SiblingPipelineAggregator {
     }
 
     /**
-     * Execute pipeline stages on time series data.
+     * Execute pipeline stages on time series data with circuit breaker tracking.
+     *
+     * @param stages the pipeline stages to execute
+     * @param input the input time series
+     * @param availableReferences the map of available references
+     * @param cbConsumer optional circuit breaker consumer for memory tracking
      */
     private List<TimeSeries> executeStages(
         List<PipelineStage> stages,
         List<TimeSeries> input,
-        Map<String, List<TimeSeries>> availableReferences
+        Map<String, List<TimeSeries>> availableReferences,
+        LongConsumer cbConsumer
     ) {
         List<TimeSeries> resultTimeSeries = input;
 
@@ -429,7 +447,8 @@ public class TimeSeriesCoordinatorAggregator extends SiblingPipelineAggregator {
                     binaryStage,
                     left,
                     right,
-                    true // coordinator-level execution
+                    true, // coordinator-level execution
+                    cbConsumer
                 );
             } else {
                 // Must be UnaryPipelineStage - all stages are validated in constructor
@@ -437,7 +456,8 @@ public class TimeSeriesCoordinatorAggregator extends SiblingPipelineAggregator {
                 resultTimeSeries = PipelineStageExecutor.executeUnaryStage(
                     unaryStage,
                     resultTimeSeries,
-                    true // coordinator-level execution
+                    true, // coordinator-level execution
+                    cbConsumer
                 );
             }
         }

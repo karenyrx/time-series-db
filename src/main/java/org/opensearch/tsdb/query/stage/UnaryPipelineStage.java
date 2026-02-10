@@ -71,6 +71,23 @@ public interface UnaryPipelineStage extends PipelineStage {
      * @throws UnsupportedOperationException if this stage does not support reduce function
      */
     default InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce) {
+        return reduce(aggregations, isFinalReduce, null);
+    }
+
+    /**
+     * Reduce multiple aggregations from different shards with circuit breaker tracking.
+     *
+     * <p>This overload accepts a circuit breaker consumer to track memory allocations
+     * during the reduce phase. This is critical for protecting coordinator nodes
+     * (including data cluster coordinators in CCS setups) from OOM conditions.</p>
+     *
+     * @param aggregations List of TimeSeriesProvider aggregations to reduce
+     * @param isFinalReduce Whether this is the final reduce phase
+     * @param circuitBreakerConsumer Optional consumer to track circuit breaker bytes (can be null)
+     * @return A new aggregation with the reduced results
+     * @throws UnsupportedOperationException if this stage does not support reduce function
+     */
+    default InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce, LongConsumer circuitBreakerConsumer) {
         throw new UnsupportedOperationException(
             "Unary pipeline stage '"
                 + getClass().getSimpleName()

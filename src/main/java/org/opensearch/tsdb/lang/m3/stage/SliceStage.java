@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
+
+import org.opensearch.tsdb.core.model.SampleList;
 
 /**
  * Pipeline stage that implements M3QL's head and tail functions.
@@ -127,8 +130,18 @@ public class SliceStage implements UnaryPipelineStage {
      */
     @Override
     public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce) {
+        return reduce(aggregations, isFinalReduce, null);
+    }
+
+    @Override
+    public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce, LongConsumer circuitBreakerConsumer) {
         if (aggregations == null || aggregations.isEmpty()) {
             throw new IllegalArgumentException("Aggregations list cannot be null or empty");
+        }
+
+        // Track result ArrayList allocation
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
         }
 
         // Keep existing head reduce logic unchanged for both modes

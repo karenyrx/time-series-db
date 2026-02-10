@@ -25,6 +25,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongConsumer;
+
+import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.tsdb.query.utils.ReduceCircuitBreakerHelper;
 
 /**
  * Internal aggregation result for time series pipeline aggregators.
@@ -166,6 +170,9 @@ public class InternalTimeSeries extends InternalAggregation implements TimeSerie
      * <li><strong>Without reduce stage:</strong> Merges time series by labels using {@link SampleMerger}</li>
      * </ul>
      *
+     * <p>Circuit breaker tracking is performed to protect coordinator nodes (including
+     * data cluster coordinators in CCS setups) from OOM conditions.</p>
+     *
      * @param aggregations the list of aggregations to reduce
      * @param reduceContext the context for the reduce operation
      * @return the reduced aggregation result
@@ -173,11 +180,16 @@ public class InternalTimeSeries extends InternalAggregation implements TimeSerie
      */
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        // Create circuit breaker consumer from reduce context
+        LongConsumer cbConsumer = ReduceCircuitBreakerHelper.createConsumer(reduceContext);
 
         // If we have a reduce stage, delegate directly to it (skip merging)
         if (reduceStage != null) {
+            // Track ArrayList allocation for providers list
+            cbConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
+
             // Convert aggregations to TimeSeriesProvider list for the stage's reduce method
-            List<TimeSeriesProvider> timeSeriesProviders = new ArrayList<>();
+            List<TimeSeriesProvider> timeSeriesProviders = new ArrayList<>(aggregations.size());
             for (InternalAggregation agg : aggregations) {
                 if (!(agg instanceof TimeSeriesProvider)) {
                     throw new IllegalArgumentException("aggregation: " + agg + " is not a TimeSeriesProvider");
@@ -185,11 +197,14 @@ public class InternalTimeSeries extends InternalAggregation implements TimeSerie
                 timeSeriesProviders.add((TimeSeriesProvider) agg);
             }
 
-            // Use the stage's own reduce method (each stage knows how to reduce its own results)
-            return reduceStage.reduce(timeSeriesProviders, reduceContext.isFinalReduce());
+            // Use the stage's own reduce method with circuit breaker tracking
+            return reduceStage.reduce(timeSeriesProviders, reduceContext.isFinalReduce(), cbConsumer);
         }
 
         // No reduce stage - collect all time series from all aggregations and merge by labels
+        // Track HashMap base overhead
+        cbConsumer.accept(RamUsageEstimator.shallowSizeOfInstance(HashMap.class));
+
         Map<Labels, TimeSeries> mergedSeriesByLabels = new HashMap<>();
 
         for (InternalAggregation aggregation : aggregations) {
@@ -211,6 +226,9 @@ public class InternalTimeSeries extends InternalAggregation implements TimeSerie
                         true // assumeSorted - samples should be sorted in reduce phase
                     );
 
+                    // Track merged samples memory
+                    cbConsumer.accept(mergedSamples.ramBytesUsed());
+
                     // Create new merged time series (reuse existing labels and metadata)
                     TimeSeries mergedSeries = new TimeSeries(
                         mergedSamples,
@@ -222,11 +240,15 @@ public class InternalTimeSeries extends InternalAggregation implements TimeSerie
                     );
                     mergedSeriesByLabels.put(seriesLabels, mergedSeries);
                 } else {
-                    // First occurrence of this time series
+                    // First occurrence of this time series - track HashMap entry overhead
+                    cbConsumer.accept(RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + seriesLabels.ramBytesUsed());
                     mergedSeriesByLabels.put(seriesLabels, series);
                 }
             }
         }
+
+        // Track result ArrayList allocation
+        cbConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
 
         List<TimeSeries> combinedTimeSeries = new ArrayList<>(mergedSeriesByLabels.values());
 

@@ -29,6 +29,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.LongConsumer;
+
+import org.opensearch.tsdb.core.model.SampleList;
 
 /**
  * Pipeline stage that calculates percentiles across multiple time series at each timestamp.
@@ -289,13 +292,18 @@ public class PercentileOfSeriesStage extends AbstractGroupingSampleStage<SortedV
      */
     @Override
     public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce) {
+        return reduce(aggregations, isFinalReduce, null);
+    }
+
+    @Override
+    public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce, LongConsumer circuitBreakerConsumer) {
         if (aggregations == null || aggregations.isEmpty()) {
             throw new IllegalArgumentException("Aggregations list cannot be null or empty");
         }
 
         // Get the merged grouped series from parent (without materialization)
         // We temporarily disable materialization by calling with isFinalReduce=false
-        InternalAggregation reduced = super.reduce(aggregations, false);
+        InternalAggregation reduced = super.reduce(aggregations, false, circuitBreakerConsumer);
 
         if (!isFinalReduce) {
             // For intermediate reduce, just return the merged samples as-is
@@ -306,10 +314,24 @@ public class PercentileOfSeriesStage extends AbstractGroupingSampleStage<SortedV
         TimeSeriesProvider provider = (TimeSeriesProvider) reduced;
         List<TimeSeries> groupedSeries = provider.getTimeSeries();
 
+        // Track expanded ArrayList allocation (one series per percentile per group)
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
+        }
+
         // Pre-allocate: each grouped series generates one series per percentile
         List<TimeSeries> expandedSeries = new ArrayList<>(groupedSeries.size() * percentiles.size());
         for (TimeSeries series : groupedSeries) {
-            expandedSeries.addAll(expandToPercentileSeries(series));
+            List<TimeSeries> percentileSeries = expandToPercentileSeries(series);
+
+            // Track memory for each percentile series created
+            if (circuitBreakerConsumer != null) {
+                for (TimeSeries ts : percentileSeries) {
+                    circuitBreakerConsumer.accept(ts.ramBytesUsed());
+                }
+            }
+
+            expandedSeries.addAll(percentileSeries);
         }
 
         // Create the final reduced aggregation with expanded series

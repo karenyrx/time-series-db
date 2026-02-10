@@ -313,7 +313,25 @@ public abstract class AbstractGroupingStage implements UnaryPipelineStage {
      * @param isFinalReduce Whether this is the final reduce phase
      * @return Reduced aggregation result
      */
+    @Override
     public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce) {
+        return reduce(aggregations, isFinalReduce, null);
+    }
+
+    /**
+     * Common reduce implementation for all grouping stages with circuit breaker tracking.
+     * Handles distributed aggregation by combining time series across multiple aggregations.
+     *
+     * <p>Circuit breaker tracking is performed to protect coordinator nodes (including
+     * data cluster coordinators in CCS setups) from OOM conditions.</p>
+     *
+     * @param aggregations List of aggregations to reduce
+     * @param isFinalReduce Whether this is the final reduce phase
+     * @param circuitBreakerConsumer Optional consumer to track circuit breaker bytes (can be null)
+     * @return Reduced aggregation result
+     */
+    @Override
+    public InternalAggregation reduce(List<TimeSeriesProvider> aggregations, boolean isFinalReduce, LongConsumer circuitBreakerConsumer) {
         if (aggregations == null || aggregations.isEmpty()) {
             throw new IllegalArgumentException("Aggregations list cannot be null or empty");
         }
@@ -326,7 +344,7 @@ public abstract class AbstractGroupingStage implements UnaryPipelineStage {
             TimeSeriesProvider result = firstAgg.createReduced(Collections.emptyList());
             return (InternalAggregation) result;
         }
-        return reduceGrouped(aggregations, firstAgg, firstTimeSeries, isFinalReduce);
+        return reduceGrouped(aggregations, firstAgg, firstTimeSeries, isFinalReduce, circuitBreakerConsumer);
     }
 
     /**
@@ -335,15 +353,36 @@ public abstract class AbstractGroupingStage implements UnaryPipelineStage {
      *
      * @param aggregations List of aggregations to reduce.
      * @param firstAgg The first aggregation in the list, used as final aggregation meta reference.
-     * @param firstTimeSeries, first nonEmpty time series across aggregations, used as time series metadata reference
+     * @param firstTimeSeries first nonEmpty time series across aggregations, used as time series metadata reference
      * @param isFinalReduce True if this is the final reduction phase, false otherwise.
+     * @return The reduced InternalAggregation result.
+     */
+    protected InternalAggregation reduceGrouped(
+        List<TimeSeriesProvider> aggregations,
+        TimeSeriesProvider firstAgg,
+        TimeSeries firstTimeSeries,
+        boolean isFinalReduce
+    ) {
+        return reduceGrouped(aggregations, firstAgg, firstTimeSeries, isFinalReduce, null);
+    }
+
+    /**
+     * Reduces a list of TimeSeriesProvider instances into a single InternalAggregation
+     * with circuit breaker tracking.
+     *
+     * @param aggregations List of aggregations to reduce.
+     * @param firstAgg The first aggregation in the list, used as final aggregation meta reference.
+     * @param firstTimeSeries first nonEmpty time series across aggregations, used as time series metadata reference
+     * @param isFinalReduce True if this is the final reduction phase, false otherwise.
+     * @param circuitBreakerConsumer Optional consumer to track circuit breaker bytes (can be null)
      * @return The reduced InternalAggregation result.
      */
     protected abstract InternalAggregation reduceGrouped(
         List<TimeSeriesProvider> aggregations,
         TimeSeriesProvider firstAgg,
         TimeSeries firstTimeSeries,
-        boolean isFinalReduce
+        boolean isFinalReduce,
+        LongConsumer circuitBreakerConsumer
     );
 
     /**

@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
+
+import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.tsdb.core.model.SampleList;
 
 /**
  * Pipeline stage that counts the number of time series.
@@ -111,8 +115,14 @@ public class CountStage extends AbstractGroupingStage {
         List<TimeSeriesProvider> aggregations,
         TimeSeriesProvider firstAgg,
         TimeSeries firstTimeSeries,
-        boolean isFinalReduce
+        boolean isFinalReduce,
+        LongConsumer circuitBreakerConsumer
     ) {
+        // Track HashMap allocation
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(RamUsageEstimator.shallowSizeOfInstance(HashMap.class));
+        }
+
         // Combine samples by group across all aggregations
         Map<ByteLabels, Double> groupToCount = new HashMap<>();
         for (TimeSeriesProvider aggregation : aggregations) {
@@ -120,7 +130,15 @@ public class CountStage extends AbstractGroupingStage {
                 ByteLabels groupLabels = extractGroupLabelsDirect(series);
                 // groupLabels shouldn't be null from aggregation, but just be safe
                 if (groupLabels != null) {
+                    // Track new group entry
+                    boolean isNewGroup = !groupToCount.containsKey(groupLabels);
                     groupToCount.merge(groupLabels, series.getSamples().getValue(0), Double::sum);
+
+                    if (isNewGroup && circuitBreakerConsumer != null) {
+                        circuitBreakerConsumer.accept(
+                            RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + groupLabels.ramBytesUsed() + Double.BYTES
+                        );
+                    }
                 }
             }
         }
@@ -131,6 +149,11 @@ public class CountStage extends AbstractGroupingStage {
         long maxTimestamp = firstTimeSeries.getMaxTimestamp();
         long stepSize = firstTimeSeries.getStep();
 
+        // Track result ArrayList
+        if (circuitBreakerConsumer != null) {
+            circuitBreakerConsumer.accept(SampleList.ARRAYLIST_OVERHEAD);
+        }
+
         // Create the final aggregated time series for each group
         // Pre-allocate result list since we know exactly how many groups we have
         List<TimeSeries> resultTimeSeries = new ArrayList<>(groupToCount.size());
@@ -139,6 +162,12 @@ public class CountStage extends AbstractGroupingStage {
             ByteLabels groupLabels = entry.getKey();
             Double count = entry.getValue();
             Labels finalLabels = groupLabels.isEmpty() ? ByteLabels.emptyLabels() : groupLabels;
+
+            // Track TimeSeries memory
+            if (circuitBreakerConsumer != null) {
+                circuitBreakerConsumer.accept(TimeSeries.ESTIMATED_MEMORY_OVERHEAD + finalLabels.ramBytesUsed());
+            }
+
             resultTimeSeries.add(
                 new TimeSeries(
                     buildDenseSamples(minTimestamp, maxTimestamp, stepSize, count),
