@@ -333,7 +333,7 @@ public class SizeTieredCompactionTests extends OpenSearchTestCase {
         String dirName = String.join("_", "block", Long.toString(compactedMinTime), Long.toString(compactedMaxTime), UUIDs.base64UUID());
         var dest = new ClosedChunkIndex(
             tempDir.resolve("blocks").resolve(dirName),
-            new ClosedChunkIndex.Metadata("compacted", compactedMinTime, compactedMaxTime),
+            new ClosedChunkIndex.Metadata("compacted", compactedMinTime, compactedMaxTime, 0L),
             Constants.Time.DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -426,7 +426,7 @@ public class SizeTieredCompactionTests extends OpenSearchTestCase {
         String dirName = String.join("_", "block", Long.toString(compactedMinTime), Long.toString(compactedMaxTime), UUIDs.base64UUID());
         var dest = new ClosedChunkIndex(
             tempDir.resolve("blocks").resolve(dirName),
-            new ClosedChunkIndex.Metadata("compacted", compactedMinTime, compactedMaxTime),
+            new ClosedChunkIndex.Metadata("compacted", compactedMinTime, compactedMaxTime, 0L),
             Constants.Time.DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );

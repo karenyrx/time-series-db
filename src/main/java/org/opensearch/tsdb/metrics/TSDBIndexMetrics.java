@@ -36,6 +36,9 @@ public class TSDBIndexMetrics {
     /** Histogram for collective size of indexes */
     public Histogram indexSize;
 
+    /** Histogram for total samples per index */
+    public Histogram indexSamples;
+
     /** Histogram for age of online indexes */
     public Histogram indexOnlineAge;
 
@@ -88,6 +91,11 @@ public class TSDBIndexMetrics {
             TSDBMetricsConstants.INDEX_SIZE_DESC,
             TSDBMetricsConstants.UNIT_BYTES
         );
+        indexSamples = registry.createHistogram(
+            TSDBMetricsConstants.INDEX_SAMPLES,
+            TSDBMetricsConstants.INDEX_SAMPLES_DESC,
+            TSDBMetricsConstants.UNIT_COUNT
+        );
         indexOnlineAge = registry.createHistogram(
             TSDBMetricsConstants.INDEX_ONLINE_AGE,
             TSDBMetricsConstants.INDEX_ONLINE_AGE_DESC,
@@ -123,6 +131,7 @@ public class TSDBIndexMetrics {
         compactionFailureTotal = null;
         compactionDeletedTotal = null;
         indexSize = null;
+        indexSamples = null;
         indexOnlineAge = null;
         indexOfflineAge = null;
         retentionLatency = null;

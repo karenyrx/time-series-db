@@ -54,6 +54,12 @@ public final class TSDBMetricsConstants {
     /** Histogram: Current number of open in-memory chunks in head (recorded on flush) */
     public static final String MEMCHUNKS_OPEN = "tsdb.memchunks.open";
 
+    /** Gauge: Current number of samples in live in-memory chunks */
+    public static final String LIVE_SAMPLES = "tsdb.live.samples";
+
+    /** Gauge: Total number of samples (live + closed indexes combined) */
+    public static final String TOTAL_SAMPLES = "tsdb.total.samples";
+
     /** Histogram: Minimum sequence number among open in-memory chunks (recorded on flush) */
     public static final String MEMCHUNKS_MINSEQ = "tsdb.memchunks.minseq";
 
@@ -222,6 +228,9 @@ public final class TSDBMetricsConstants {
     /** Histogram: Total size (bytes) of all closed chunk indexes */
     public static final String INDEX_SIZE = "tsdb.index.size";
 
+    /** Histogram: Total number of samples across all closed chunk indexes */
+    public static final String INDEX_SAMPLES = "tsdb.index.samples";
+
     /** Histogram: Age (ms) of online indexes (first to last) */
     public static final String INDEX_ONLINE_AGE = "tsdb.index.online.age";
 
@@ -257,6 +266,8 @@ public final class TSDBMetricsConstants {
     // Engine Metrics - Snapshots
     public static final String SERIES_OPEN_DESC = "Current number of open series in head (recorded on flush)";
     public static final String MEMCHUNKS_OPEN_DESC = "Current number of open in-memory chunks in head (recorded on flush)";
+    public static final String LIVE_SAMPLES_DESC = "Current number of samples in live in-memory chunks";
+    public static final String TOTAL_SAMPLES_DESC = "Total number of samples (live in-memory + closed indexes combined)";
     public static final String MEMCHUNKS_MINSEQ_DESC = "Minimum sequence number among open in-memory chunks (recorded on flush)";
     public static final String CLOSEDCHUNKS_SIZE_DESC = "Size histogram (bytes) of closed chunks persisted to disk";
     public static final String FLUSH_LATENCY_DESC = "Latency of flush operation";
@@ -318,6 +329,7 @@ public final class TSDBMetricsConstants {
     // Index Metrics
     public static final String INDEX_CREATED_TOTAL_DESC = "Total number of closed chunk indexes created";
     public static final String INDEX_SIZE_DESC = "Total size (bytes) of all closed chunk indexes";
+    public static final String INDEX_SAMPLES_DESC = "Total number of samples across all closed chunk indexes";
     public static final String INDEX_ONLINE_AGE_DESC = "Age (ms) of online indexes (first to last)";
     public static final String INDEX_OFFLINE_AGE_DESC = "Age (ms) of indexes pending closure (offline)";
     public static final String RETENTION_SUCCESS_TOTAL_DESC = "Total number of indexes deleted by retention";

@@ -51,7 +51,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * LiveChunkIndex indexes series in the head block which have open chunks.
+ * LiveSeriesIndex indexes series in the head block which have open chunks.
  */
 public class LiveSeriesIndex implements Closeable {
     /**

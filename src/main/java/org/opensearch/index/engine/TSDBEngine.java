@@ -1653,6 +1653,7 @@ public class TSDBEngine extends Engine {
         TSDBMetrics.ENGINE.registerGauges(
             TSDBMetrics.getRegistry(),
             () -> (double) headRef.getNumSeries(),           // Current series count
+            () -> (double) headRef.getTotalLiveSamples(),    // Current live samples count
             () -> {
                 // Minimum sequence number - convert Long.MAX_VALUE to 0 for metrics
                 // (Long.MAX_VALUE is internal sentinel, not meaningful for observability)

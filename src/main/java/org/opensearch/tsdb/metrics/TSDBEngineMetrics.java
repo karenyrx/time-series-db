@@ -49,6 +49,12 @@ public class TSDBEngineMetrics {
     /** Gauge handle for current open series count */
     public Closeable seriesOpenGauge;
 
+    /** Gauge handle for current live samples count */
+    public Closeable liveSamplesGauge;
+
+    /** Gauge handle for total samples count (live + closed) */
+    public Closeable totalSamplesGauge;
+
     /** Gauge handle for minimum sequence number */
     public Closeable memChunksMinSeqGauge;
 
@@ -196,10 +202,19 @@ public class TSDBEngineMetrics {
      *
      * @param registry The metrics registry
      * @param seriesCountSupplier Supplier that returns current open series count
+     * @param liveSamplesSupplier Supplier that returns current live samples count
+     * @param totalSamplesSupplier Supplier that returns total samples count (live + closed)
      * @param minSeqSupplier Supplier that returns current minimum sequence number
      * @param tags Tags to attach to the gauges (e.g., index name, shard ID)
      */
-    public void registerGauges(MetricsRegistry registry, Supplier<Double> seriesCountSupplier, Supplier<Double> minSeqSupplier, Tags tags) {
+    public void registerGauges(
+        MetricsRegistry registry,
+        Supplier<Double> seriesCountSupplier,
+        Supplier<Double> liveSamplesSupplier,
+        Supplier<Double> totalSamplesSupplier,
+        Supplier<Double> minSeqSupplier,
+        Tags tags
+    ) {
         if (registry == null) {
             return; // Metrics not initialized
         }
@@ -210,6 +225,22 @@ public class TSDBEngineMetrics {
             TSDBMetricsConstants.SERIES_OPEN_DESC,
             TSDBMetricsConstants.UNIT_COUNT,
             seriesCountSupplier,
+            tags
+        );
+
+        liveSamplesGauge = registry.createGauge(
+            TSDBMetricsConstants.LIVE_SAMPLES,
+            TSDBMetricsConstants.LIVE_SAMPLES_DESC,
+            TSDBMetricsConstants.UNIT_COUNT,
+            liveSamplesSupplier,
+            tags
+        );
+
+        totalSamplesGauge = registry.createGauge(
+            TSDBMetricsConstants.TOTAL_SAMPLES,
+            TSDBMetricsConstants.TOTAL_SAMPLES_DESC,
+            TSDBMetricsConstants.UNIT_COUNT,
+            totalSamplesSupplier,
             tags
         );
 
@@ -225,9 +256,13 @@ public class TSDBEngineMetrics {
     public void cleanup() {
         // Close gauge handles first (important to unregister callbacks)
         closeQuietly(seriesOpenGauge);
+        closeQuietly(liveSamplesGauge);
+        closeQuietly(totalSamplesGauge);
         closeQuietly(memChunksMinSeqGauge);
 
         seriesOpenGauge = null;
+        liveSamplesGauge = null;
+        totalSamplesGauge = null;
         memChunksMinSeqGauge = null;
 
         // Cleanup ingestion counters

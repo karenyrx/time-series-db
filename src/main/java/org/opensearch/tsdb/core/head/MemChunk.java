@@ -190,6 +190,14 @@ public class MemChunk {
     }
 
     /**
+     * Returns the total number of samples in this chunk.
+     * @return the total number of samples
+     */
+    public int getNumSamples() {
+        return chunk.getNumSamples();
+    }
+
+    /**
      * Marks this chunk as closed.
      */
     public void setClosed(boolean closed) {
@@ -325,6 +333,18 @@ public class MemChunk {
          */
         public int getNumChunks() {
             return chunks.size();
+        }
+
+        /**
+         * Returns the total number of samples across all internal chunks.
+         * @return the total number of samples
+         */
+        public int getNumSamples() {
+            int total = 0;
+            for (ChunkEntry entry : chunks) {
+                total += entry.getChunk().numSamples();
+            }
+            return total;
         }
 
         /**

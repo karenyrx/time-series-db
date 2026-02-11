@@ -46,10 +46,10 @@ public class TimeBasedRetentionTests extends OpenSearchTestCase {
         Path indexPath4 = metricsDirectory.resolve("block_400");
 
         // With TTL=DEFAULT_BLOCK_DURATION , first 3 should be removed
-        ClosedChunkIndex.Metadata metadata1 = new ClosedChunkIndex.Metadata("block_100", 0L, TEST_BLOCK_DURATION);
-        ClosedChunkIndex.Metadata metadata2 = new ClosedChunkIndex.Metadata("block_200", TEST_BLOCK_DURATION, TEST_BLOCK_DURATION * 2);
-        ClosedChunkIndex.Metadata metadata3 = new ClosedChunkIndex.Metadata("block_300", TEST_BLOCK_DURATION * 2, TEST_BLOCK_DURATION * 3);
-        ClosedChunkIndex.Metadata metadata4 = new ClosedChunkIndex.Metadata("block_400", TEST_BLOCK_DURATION * 4, TEST_BLOCK_DURATION * 5);
+        ClosedChunkIndex.Metadata metadata1 = new ClosedChunkIndex.Metadata("block_100", 0L, TEST_BLOCK_DURATION, 0L);
+        ClosedChunkIndex.Metadata metadata2 = new ClosedChunkIndex.Metadata("block_200", TEST_BLOCK_DURATION, TEST_BLOCK_DURATION * 2, 0L);
+        ClosedChunkIndex.Metadata metadata3 = new ClosedChunkIndex.Metadata("block_300", TEST_BLOCK_DURATION * 2, TEST_BLOCK_DURATION * 3, 0L);
+        ClosedChunkIndex.Metadata metadata4 = new ClosedChunkIndex.Metadata("block_400", TEST_BLOCK_DURATION * 4, TEST_BLOCK_DURATION * 5, 0L);
 
         ClosedChunkIndex realIndex1 = new ClosedChunkIndex(indexPath1, metadata1, Constants.Time.DEFAULT_TIME_UNIT, Settings.EMPTY);
         ClosedChunkIndex realIndex2 = new ClosedChunkIndex(indexPath2, metadata2, Constants.Time.DEFAULT_TIME_UNIT, Settings.EMPTY);
@@ -75,8 +75,8 @@ public class TimeBasedRetentionTests extends OpenSearchTestCase {
         Path indexPath1 = metricsDirectory.resolve("block_100");
         Path indexPath2 = metricsDirectory.resolve("block_200");
 
-        ClosedChunkIndex.Metadata metadata1 = new ClosedChunkIndex.Metadata("block_100", 0L, TEST_BLOCK_DURATION);
-        ClosedChunkIndex.Metadata metadata2 = new ClosedChunkIndex.Metadata("block_200", TEST_BLOCK_DURATION, TEST_BLOCK_DURATION * 2);
+        ClosedChunkIndex.Metadata metadata1 = new ClosedChunkIndex.Metadata("block_100", 0L, TEST_BLOCK_DURATION, 0L);
+        ClosedChunkIndex.Metadata metadata2 = new ClosedChunkIndex.Metadata("block_200", TEST_BLOCK_DURATION, TEST_BLOCK_DURATION * 2, 0L);
 
         ClosedChunkIndex realIndex1 = new ClosedChunkIndex(indexPath1, metadata1, Constants.Time.DEFAULT_TIME_UNIT, Settings.EMPTY);
         ClosedChunkIndex realIndex2 = new ClosedChunkIndex(indexPath2, metadata2, Constants.Time.DEFAULT_TIME_UNIT, Settings.EMPTY);

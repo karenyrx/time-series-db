@@ -85,6 +85,9 @@ public class ClosedChunkIndexManager implements Closeable {
 
     private final Logger log;
 
+    // Shard ID for this index manager
+    private final ShardId shardId;
+
     // Directory to store ClosedChunkIndexes under
     private final Path dir;
 
@@ -143,6 +146,7 @@ public class ClosedChunkIndexManager implements Closeable {
         this.metadataStore = metadataStore;
         this.indexesUndergoingCompaction = new HashSet<>();
         this.pendingClosureIndexes = new HashSet<>();
+        this.shardId = shardId;
         this.log = Loggers.getLogger(ClosedChunkIndexManager.class, shardId);
         this.lastRetentionTime = Instant.now();
         this.lastCompactionTime = Instant.now();
@@ -256,8 +260,15 @@ public class ClosedChunkIndexManager implements Closeable {
             try {
                 long totalSize = sizeOf(closedChunkIndexMap.values().toArray(ClosedChunkIndex[]::new));
                 TSDBMetrics.recordHistogram(TSDBMetrics.INDEX.indexSize, totalSize);
+
+                // Record total samples across all closed chunk indexes for this shard
+                long totalSamples = closedChunkIndexMap.values().stream().mapToLong(ClosedChunkIndex::getNumSamples).sum();
+                var shardTags = org.opensearch.telemetry.metrics.tags.Tags.create()
+                    .addTag("index", shardId.getIndexName())
+                    .addTag("shard", (long) shardId.getId());
+                TSDBMetrics.recordHistogram(TSDBMetrics.INDEX.indexSamples, totalSamples, shardTags);
             } catch (Exception e) {
-                log.error("Failed to record index size metric", e);
+                log.error("Failed to record index metrics", e);
             }
         } catch (Throwable e) {
             log.error("Failed to run optimization cycle", e);
@@ -344,7 +355,10 @@ public class ClosedChunkIndexManager implements Closeable {
         var minTime = Time.toTimestamp(plan.getFirst().getMinTime(), resolution);
         var maxTime = Time.toTimestamp(plan.getLast().getMaxTime(), resolution);
         var dirName = String.join("_", BLOCK_PREFIX, Long.toString(minTime), Long.toString(maxTime), UUIDs.base64UUID());
-        var metadata = new ClosedChunkIndex.Metadata(dirName, minTime, maxTime);
+
+        // Calculate total samples from all indexes being compacted
+        long totalSamples = plan.stream().mapToLong(ClosedChunkIndex::getNumSamples).sum();
+        var metadata = new ClosedChunkIndex.Metadata(dirName, minTime, maxTime, totalSamples);
 
         // Create an index with serial scheduler to make it less compute expensive.
         ClosedChunkIndex newIndex = new ClosedChunkIndex(
@@ -597,7 +611,7 @@ public class ClosedChunkIndexManager implements Closeable {
         long newIndexMaxTime = rangeForTimestamp(chunkTimestamp, blockDuration);
         long newIndexMinTime = newIndexMaxTime - blockDuration;
         String dirName = String.join("_", BLOCK_PREFIX, Long.toString(newIndexMinTime), Long.toString(newIndexMaxTime), UUIDs.base64UUID());
-        ClosedChunkIndex.Metadata metadata = new ClosedChunkIndex.Metadata(dirName, newIndexMinTime, newIndexMaxTime);
+        ClosedChunkIndex.Metadata metadata = new ClosedChunkIndex.Metadata(dirName, newIndexMinTime, newIndexMaxTime, 0L);
         ClosedChunkIndex newIndex;
 
         lock.lock();
@@ -710,6 +724,20 @@ public class ClosedChunkIndexManager implements Closeable {
         lock.lock();
         try {
             return closedChunkIndexMap.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Get the total number of samples across all closed chunk indexes.
+     *
+     * @return total number of samples in all closed indexes
+     */
+    public long getTotalClosedSamples() {
+        lock.lock();
+        try {
+            return closedChunkIndexMap.values().stream().mapToLong(ClosedChunkIndex::getNumSamples).sum();
         } finally {
             lock.unlock();
         }

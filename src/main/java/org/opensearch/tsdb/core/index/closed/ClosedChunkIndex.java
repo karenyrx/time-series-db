@@ -74,6 +74,7 @@ public class ClosedChunkIndex implements Closeable {
     private final LabelStorageType labelStorageType;
     private final SeriesMetadataManager metadataManager;
     private IndexWriter indexWriter;
+    private long numSamples; // Mutable field to track total samples in this index
 
     /**
      * Create a new ClosedChunkIndex in the given directory.
@@ -108,6 +109,7 @@ public class ClosedChunkIndex implements Closeable {
         analyzer = new WhitespaceAnalyzer();
         try {
             this.metadata = metadata;
+            this.numSamples = metadata.numSamples(); // Initialize from metadata
             this.resolution = resolution;
             IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
             iwc.setMergeScheduler(scheduler);
@@ -169,6 +171,9 @@ public class ClosedChunkIndex implements Closeable {
         doc.add(new BinaryDocValuesField(Constants.IndexSchema.TIMESTAMP_RANGE, TimestampRangeEncoding.encodeRange(minTs, maxTs)));
 
         indexWriter.addDocument(doc);
+
+        // Track total samples in this index
+        numSamples += chunk.numSamples();
 
         // Record closed chunk size
         TSDBMetrics.recordHistogram(TSDBMetrics.ENGINE.closedChunkSize, chunk.bytesSize());
@@ -310,6 +315,15 @@ public class ClosedChunkIndex implements Closeable {
     }
 
     /**
+     * Returns the current number of samples in this index.
+     *
+     * @return the total number of samples
+     */
+    public long getNumSamples() {
+        return numSamples;
+    }
+
+    /**
      * Get the directory backing the index.
      *
      * @return the Directory
@@ -395,8 +409,9 @@ public class ClosedChunkIndex implements Closeable {
      * @param directoryName name of the directory backing the index.
      * @param minTimestamp  min timestamp of the index
      * @param maxTimestamp  max timestamp of the index
+     * @param numSamples    total number of samples in the index
      */
-    public record Metadata(String directoryName, long minTimestamp, long maxTimestamp) {
+    public record Metadata(String directoryName, long minTimestamp, long maxTimestamp, long numSamples) {
         public String marshal() throws IOException {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -404,6 +419,7 @@ public class ClosedChunkIndex implements Closeable {
                 builder.field("directory_name", directoryName);
                 builder.field("min_timestamp", minTimestamp);
                 builder.field("max_timestamp", maxTimestamp);
+                builder.field("num_samples", numSamples);
                 builder.endObject();
                 return builder.toString();
             }
@@ -422,7 +438,9 @@ public class ClosedChunkIndex implements Closeable {
                 String directoryName = (String) map.get("directory_name");
                 long minTimestamp = ((Number) map.get("min_timestamp")).longValue();
                 long maxTimestamp = ((Number) map.get("max_timestamp")).longValue();
-                return new Metadata(directoryName, minTimestamp, maxTimestamp);
+                // Default to 0 for backward compatibility with existing indexes
+                long numSamples = map.containsKey("num_samples") ? ((Number) map.get("num_samples")).longValue() : 0L;
+                return new Metadata(directoryName, minTimestamp, maxTimestamp, numSamples);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to deserialize Metadata", e);
             }

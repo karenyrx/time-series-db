@@ -54,7 +54,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         try {
             ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
                 Path.of(tempDir.toString(), "subdir"),
-                new ClosedChunkIndex.Metadata(Path.of(tempDir.toString(), "subdir").getFileName().toString(), 0, 0),
+                new ClosedChunkIndex.Metadata(Path.of(tempDir.toString(), "subdir").getFileName().toString(), 0, 0, 0L),
                 DEFAULT_TIME_UNIT,
                 Settings.EMPTY
             );
@@ -68,7 +68,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         var dir = createTempDir("testAddAndRead");
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             dir,
-            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -107,7 +107,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         Path tempDir = createTempDir("testCommitWithMetadataAndLoad");
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             tempDir,
-            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -126,7 +126,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
 
         ClosedChunkIndex reopenedIndex = new ClosedChunkIndex(
             tempDir,
-            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -150,7 +150,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         Path tempDir = createTempDir("testSnapshotDeletionPolicy");
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             tempDir,
-            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -194,7 +194,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         var dir = createTempDir("testForceMerge");
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             dir,
-            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -236,7 +236,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         var dir = createTempDir("testDocumentsSortedByLabelsHashAndTime");
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             dir,
-            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );
@@ -437,7 +437,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         expectThrows(FileAlreadyExistsException.class, () -> {
             new ClosedChunkIndex(
                 fileInsteadOfDir,
-                new ClosedChunkIndex.Metadata(fileInsteadOfDir.getFileName().toString(), 0, 0),
+                new ClosedChunkIndex.Metadata(fileInsteadOfDir.getFileName().toString(), 0, 0, 0L),
                 DEFAULT_TIME_UNIT,
                 Settings.EMPTY
             );
@@ -448,7 +448,7 @@ public class ClosedChunkIndexTests extends OpenSearchTestCase {
         var dir = createTempDir("testForceMergeException");
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             dir,
-            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(dir.getFileName().toString(), 0, 0, 0L),
             DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );

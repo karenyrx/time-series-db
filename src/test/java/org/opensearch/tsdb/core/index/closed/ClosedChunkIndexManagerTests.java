@@ -146,13 +146,13 @@ public class ClosedChunkIndexManagerTests extends OpenSearchTestCase {
         // Independently verify chunks in both indexes
         ClosedChunkIndex first = new ClosedChunkIndex(
             blockDirs.get(0),
-            new ClosedChunkIndex.Metadata(blockDirs.get(0).getFileName().toString(), 0, 7200000),
+            new ClosedChunkIndex.Metadata(blockDirs.get(0).getFileName().toString(), 0, 7200000, 0L),
             resolution,
             Settings.EMPTY
         );
         ClosedChunkIndex second = new ClosedChunkIndex(
             blockDirs.get(1),
-            new ClosedChunkIndex.Metadata(blockDirs.get(1).getFileName().toString(), 7200000, 14400000),
+            new ClosedChunkIndex.Metadata(blockDirs.get(1).getFileName().toString(), 7200000, 14400000, 0L),
             resolution,
             Settings.EMPTY
         );
@@ -451,14 +451,14 @@ public class ClosedChunkIndexManagerTests extends OpenSearchTestCase {
 
         ClosedChunkIndex first = new ClosedChunkIndex(
             firstBlock,
-            new ClosedChunkIndex.Metadata(firstBlock.getFileName().toString(), 7200000, 21600000),
+            new ClosedChunkIndex.Metadata(firstBlock.getFileName().toString(), 7200000, 21600000, 0L),
             resolution,
             Settings.EMPTY
         );
 
         ClosedChunkIndex second = new ClosedChunkIndex(
             secondBlock,
-            new ClosedChunkIndex.Metadata(secondBlock.getFileName().toString(), 21600000, 28800000),
+            new ClosedChunkIndex.Metadata(secondBlock.getFileName().toString(), 21600000, 28800000, 0L),
             resolution,
             Settings.EMPTY
         );

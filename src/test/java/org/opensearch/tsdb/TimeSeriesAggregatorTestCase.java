@@ -154,7 +154,7 @@ public abstract class TimeSeriesAggregatorTestCase extends AggregatorTestCase {
         // Create ClosedChunkIndex with the Path constructor - it manages its own directory
         ClosedChunkIndex closedChunkIndex = new ClosedChunkIndex(
             tempDir,
-            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0),
+            new ClosedChunkIndex.Metadata(tempDir.getFileName().toString(), 0, 0, 0L),
             Constants.Time.DEFAULT_TIME_UNIT,
             Settings.EMPTY
         );

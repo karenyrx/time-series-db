@@ -97,30 +97,38 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
         metrics.initialize(registry);
 
         Supplier<Double> seriesSupplier = () -> 100.0;
+        Supplier<Double> liveSamplesSupplier = () -> 5000.0;
+        Supplier<Double> totalSamplesSupplier = () -> 10000.0;
         Supplier<Double> minSeqSupplier = () -> 1000.0;
         Tags tags = Tags.create().addTag("index", "test").addTag("shard", 0L);
 
-        metrics.registerGauges(registry, seriesSupplier, minSeqSupplier, tags);
+        metrics.registerGauges(registry, seriesSupplier, liveSamplesSupplier, totalSamplesSupplier, minSeqSupplier, tags);
 
         // Verify gauge handles are created (memChunksOpen not registered - derived in backend)
         assertNotNull(metrics.seriesOpenGauge);
+        assertNotNull(metrics.liveSamplesGauge);
+        assertNotNull(metrics.totalSamplesGauge);
         assertNotNull(metrics.memChunksMinSeqGauge);
 
-        // Verify registry calls for gauges (2 gauges total)
-        verify(registry, times(2)).createGauge(anyString(), anyString(), anyString(), any(Supplier.class), eq(tags));
+        // Verify registry calls for gauges (4 gauges total)
+        verify(registry, times(4)).createGauge(anyString(), anyString(), anyString(), any(Supplier.class), eq(tags));
     }
 
     public void testRegisterGaugesWithNullRegistryDoesNothing() {
         metrics.initialize(registry);
 
         Supplier<Double> seriesSupplier = () -> 100.0;
+        Supplier<Double> liveSamplesSupplier = () -> 5000.0;
+        Supplier<Double> totalSamplesSupplier = () -> 10000.0;
         Supplier<Double> minSeqSupplier = () -> 1000.0;
         Tags tags = Tags.create().addTag("index", "test");
 
         // Should not throw
-        metrics.registerGauges(null, seriesSupplier, minSeqSupplier, tags);
+        metrics.registerGauges(null, seriesSupplier, liveSamplesSupplier, totalSamplesSupplier, minSeqSupplier, tags);
 
         assertNull(metrics.seriesOpenGauge);
+        assertNull(metrics.liveSamplesGauge);
+        assertNull(metrics.totalSamplesGauge);
         assertNull(metrics.memChunksMinSeqGauge);
     }
 
@@ -128,10 +136,12 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
         metrics.initialize(registry);
 
         Supplier<Double> seriesSupplier = () -> 100.0;
+        Supplier<Double> liveSamplesSupplier = () -> 5000.0;
+        Supplier<Double> totalSamplesSupplier = () -> 10000.0;
         Supplier<Double> minSeqSupplier = () -> 1000.0;
         Tags tags = Tags.EMPTY;
 
-        metrics.registerGauges(registry, seriesSupplier, minSeqSupplier, tags);
+        metrics.registerGauges(registry, seriesSupplier, liveSamplesSupplier, totalSamplesSupplier, minSeqSupplier, tags);
 
         // Verify correct metric names used (memChunksOpen not registered)
         verify(registry).createGauge(
@@ -139,6 +149,22 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
             eq(TSDBMetricsConstants.SERIES_OPEN_DESC),
             eq(TSDBMetricsConstants.UNIT_COUNT),
             eq(seriesSupplier),
+            eq(tags)
+        );
+
+        verify(registry).createGauge(
+            eq(TSDBMetricsConstants.LIVE_SAMPLES),
+            eq(TSDBMetricsConstants.LIVE_SAMPLES_DESC),
+            eq(TSDBMetricsConstants.UNIT_COUNT),
+            eq(liveSamplesSupplier),
+            eq(tags)
+        );
+
+        verify(registry).createGauge(
+            eq(TSDBMetricsConstants.TOTAL_SAMPLES),
+            eq(TSDBMetricsConstants.TOTAL_SAMPLES_DESC),
+            eq(TSDBMetricsConstants.UNIT_COUNT),
+            eq(totalSamplesSupplier),
             eq(tags)
         );
 
@@ -182,25 +208,33 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
         metrics.initialize(registry);
 
         Closeable seriesGauge = mock(Closeable.class);
+        Closeable liveSamplesGauge = mock(Closeable.class);
+        Closeable totalSamplesGauge = mock(Closeable.class);
         Closeable minSeqGauge = mock(Closeable.class);
 
         when(registry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), any(Tags.class))).thenReturn(
             seriesGauge,
+            liveSamplesGauge,
+            totalSamplesGauge,
             minSeqGauge
         );
 
         Supplier<Double> supplier = () -> 100.0;
         Tags tags = Tags.EMPTY;
-        metrics.registerGauges(registry, supplier, supplier, tags);
+        metrics.registerGauges(registry, supplier, supplier, supplier, supplier, tags);
 
         metrics.cleanup();
 
         // Verify registered gauges are closed (memChunksOpen not registered)
         verify(seriesGauge).close();
+        verify(liveSamplesGauge).close();
+        verify(totalSamplesGauge).close();
         verify(minSeqGauge).close();
 
         // Verify gauge handles are nulled
         assertNull(metrics.seriesOpenGauge);
+        assertNull(metrics.liveSamplesGauge);
+        assertNull(metrics.totalSamplesGauge);
         assertNull(metrics.memChunksMinSeqGauge);
     }
 
@@ -209,6 +243,8 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
 
         // Don't register gauges
         assertNull(metrics.seriesOpenGauge);
+        assertNull(metrics.liveSamplesGauge);
+        assertNull(metrics.totalSamplesGauge);
         assertNull(metrics.memChunksMinSeqGauge);
 
         // Should not throw
@@ -226,12 +262,14 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
 
         Supplier<Double> supplier = () -> 100.0;
         Tags tags = Tags.EMPTY;
-        metrics.registerGauges(registry, supplier, supplier, tags);
+        metrics.registerGauges(registry, supplier, supplier, supplier, supplier, tags);
 
         // Should not throw even if gauge.close() fails
         metrics.cleanup();
 
         assertNull(metrics.seriesOpenGauge);
+        assertNull(metrics.liveSamplesGauge);
+        assertNull(metrics.totalSamplesGauge);
         assertNull(metrics.memChunksMinSeqGauge);
     }
 
@@ -264,7 +302,7 @@ public class TSDBEngineMetricsTests extends OpenSearchTestCase {
         };
 
         Tags tags = Tags.EMPTY;
-        metrics.registerGauges(registry, trackingSupplier, trackingSupplier, tags);
+        metrics.registerGauges(registry, trackingSupplier, trackingSupplier, trackingSupplier, trackingSupplier, tags);
 
         // The supplier should not be invoked during registration (only when scraped)
         assertEquals(0, invocationCount[0]);

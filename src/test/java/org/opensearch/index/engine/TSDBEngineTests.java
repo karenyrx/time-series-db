@@ -219,9 +219,9 @@ public class TSDBEngineTests extends EngineTestCase {
 
     public void testMetadataStoreRetrieve() throws Exception {
         var metadata = List.of(
-            new ClosedChunkIndex.Metadata("86BE47D0-90A3-4F46-A577-D26D35351F24", 0, 72000000),
-            new ClosedChunkIndex.Metadata("86BE47D0-90A3-4F46-A577-D26D35351F25", 72000000, 144000000),
-            new ClosedChunkIndex.Metadata("86BE47D0-90A3-4F46-A577-D26D35351F26", 144000000, 216000000)
+            new ClosedChunkIndex.Metadata("86BE47D0-90A3-4F46-A577-D26D35351F24", 0, 72000000, 0L),
+            new ClosedChunkIndex.Metadata("86BE47D0-90A3-4F46-A577-D26D35351F25", 72000000, 144000000, 0L),
+            new ClosedChunkIndex.Metadata("86BE47D0-90A3-4F46-A577-D26D35351F26", 144000000, 216000000, 0L)
         );
 
         try {

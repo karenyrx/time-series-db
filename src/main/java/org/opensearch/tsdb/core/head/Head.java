@@ -653,6 +653,26 @@ public class Head implements Closeable {
     }
 
     /**
+     * Get the total number of samples across all open memory chunks.
+     * Made public to support pull-based gauge metrics.
+     *
+     * @return total number of samples in all MemChunks
+     */
+    public long getTotalLiveSamples() {
+        long totalSamples = 0;
+        for (MemSeries series : seriesMap.getSeriesMap()) {
+            MemChunk current = series.getHeadChunk();
+            while (current != null) {
+                if (!current.isClosed()) {
+                    totalSamples += current.getNumSamples();
+                }
+                current = current.getPrev();
+            }
+        }
+        return totalSamples;
+    }
+
+    /**
      * Closes the head, flushing any pending writes to disk and writing a snapshot of the head state. Assumes that writes have stopped
      * before this is called.
      *
